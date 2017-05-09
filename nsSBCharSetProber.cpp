@@ -62,22 +62,27 @@ void nsSingleByteCharSetProber::BitShift(unsigned char* aBuf, unsigned char* cop
 
 PRUint32 nsSingleByteCharSetProber::GetScore(unsigned char shift_bit[][65536], PRUint32 start, PRUint32 aLen){
 
-  PRUint32 Max_Score = 0;
+  PRUint32 Max_Score = 999;
   PRUint32 Max_score_bit;
   PRUint32 Score[8];
   unsigned char order;
+  unsigned char lastorder;
+
 
   memset(Score, 0, sizeof(PRUint32)*8);
+  lastorder = mLastOrder;
 
-  /*
-
-  for(PRUint32 shift = 0; shift < 8; shift++){              // 이후 ILL이 발생한 수중 제일 적은 쉬프트를 사용
+  for(PRUint32 shift = 0; shift < 8; shift++){              // 이후 0이 발생한 수중 제일 적은 쉬프트를 사용
     for(PRUint32 i = start; i < aLen; i++){
       order = mModel->charToOrderMap[(unsigned char)shift_bit[shift][i]];
-      if(order == ILL){
-        Score[shift]++;
+      if(order < mModel->freqCharCount){
+        if(mModel->precedenceMatrix[mLastOrder*mModel->freqCharCount+order] == 0){
+          Score[shift]++;
+        }
+        mLastOrder = order;
       }
     }
+    mLastOrder = lastorder;
   }
 
   for(PRUint32 shift = 0; shift < 8; shift++){      //최소값 구하는거
@@ -85,25 +90,7 @@ PRUint32 nsSingleByteCharSetProber::GetScore(unsigned char shift_bit[][65536], P
       Max_Score = Score[shift];
       Max_score_bit = shift;
     }
-  }*/
-
-  for(PRUint32 shift = 0; shift < 8; shift++){              // ILL이 등장할때까지 나타난 정상적인 비트수로 score 계산
-    for(PRUint32 i = start; i < aLen; i++){
-      order = mModel->charToOrderMap[(unsigned char)shift_bit[shift][i]];
-      if(order == ILL){
-        break;
-      }
-      Score[shift]++;
-    }
   }
-
-  for(PRUint32 shift = 0; shift < 8; shift++){    //최대값 구하는거
-    if(Score[shift] > Max_Score){
-      Max_Score = Score[shift];
-      Max_score_bit = shift;
-    }
-  }
-
 
   printf("Max_Score : %d \n", Max_Score);
   return Max_score_bit;
@@ -112,25 +99,34 @@ PRUint32 nsSingleByteCharSetProber::GetScore(unsigned char shift_bit[][65536], P
 void nsSingleByteCharSetProber::ErrorRecover(unsigned char* aBuf, PRUint32 aLen){
 
   unsigned char order;
+  unsigned char lastorder;
   PRUint32 Max_score_shift;
+
+  Reset();
 
   for(PRUint32 i = 0; i < aLen; i++){
     order = mModel->charToOrderMap[(unsigned char)aBuf[i]];
-      if(order == ILL){               //iLL문자 체크
-        printf("Error Discover : %d \n", i);
+    lastorder = mLastOrder;
+      if(order < mModel->freqCharCount){
+        if(mModel->precedenceMatrix[mLastOrder*mModel->freqCharCount+order] == 0){ //0번 클래스
+          printf("Error Discover : %d \n", i);
+          unsigned char shift[8][65536];
 
-        unsigned char shift[8][65536];
+          for(PRUint32 j = 0; j < 8; j++){                // 쉬프뜨
+            BitShift(aBuf, shift[j], i, aLen, j);
+          }
+          Max_score_shift = GetScore(shift, i+1, aLen);     //score 계산
+          printf("Shift_bit : %d \n", Max_score_shift);
 
-        for(PRUint32 j = 0; j < 8; j++){                // 쉬프뜨
-          BitShift(aBuf, shift[j], i, aLen, j);
+          for(PRUint32 k = i; k < aLen; k++){        //제일 좋은 스코어의 것으로 buf내용 변경
+            aBuf[k] = shift[Max_score_shift][k];
+          }
+          aBuf[i] = '?';        //ILL이 발생한 비트를 ?로 바꿔준다*/
+          mLastOrder = lastorder;
         }
-        Max_score_shift = GetScore(shift, i+1, aLen);     //score 계산
-        printf("Shift_bit : %d \n", Max_score_shift);
-
-        for(PRUint32 k = i; k < aLen; k++){        //제일 좋은 스코어의 것으로 buf내용 변경
-          aBuf[k] = shift[Max_score_shift][k];
+        else{
+          mLastOrder = order;
         }
-        aBuf[i] = '?';        //ILL이 발생한 비트를 ?로 바꿔준다*/
       }
   }
 
@@ -141,24 +137,28 @@ nsProbingState nsSingleByteCharSetProber::HandleData(const char* aBuf, PRUint32 
   unsigned char order;
   unsigned char copy_aBuf[65536];
   PRUint32 error_count = 0;
-  FILE* out = fopen("output_vtn.txt", "a+");
+  char *newBuf1 = 0;
+  PRUint32 newLen1 = 0;
+
+   //에러 리커버
 
   for(PRUint32 i = 0; i < aLen; i++)
     copy_aBuf[i] = (unsigned char)aBuf[i];
 
   ErrorRecover(copy_aBuf, aLen);
 
+  FILE* out = fopen("output_recover.txt", "a+");
   for (PRUint32 k = 0; k < aLen+1; k++)
     fputc(copy_aBuf[k], out);
-    //fprintf(out, "%s", copy_aBuf[k]);
 
   fclose(out);
 
+  FilterWithoutEnglishLetters(aBuf, aLen, &newBuf1, newLen1);
+  Reset();
 
-  for (PRUint32 i = 0; i < aLen; i++)
+  for (PRUint32 i = 0; i < newLen1; i++)
   {
-    order = mModel->charToOrderMap[(unsigned char)aBuf[i]];
-
+    order = mModel->charToOrderMap[(unsigned char)newBuf1[i]];
     if (order < SYMBOL_CAT_ORDER)
     {
       mTotalChar++;
@@ -182,15 +182,16 @@ nsProbingState nsSingleByteCharSetProber::HandleData(const char* aBuf, PRUint32 
       if (mLastOrder < mModel->freqCharCount)
       {
         mTotalSeqs++;
-        if (!mReversed)
+        if (!mReversed){
           ++(mSeqCounters[mModel->precedenceMatrix[mLastOrder*mModel->freqCharCount+order]]);
+        }
         else // reverse the order of the letters in the lookup
           ++(mSeqCounters[mModel->precedenceMatrix[order*mModel->freqCharCount+mLastOrder]]);
       }
     }
     mLastOrder = order;
   }
-
+  printf("0 : %d, 1 : %d 2 : %d 3 : %d\n", mSeqCounters[0],mSeqCounters[1],mSeqCounters[2],mSeqCounters[3]);
   if (mState == eDetecting)
     if (mTotalSeqs > SB_ENOUGH_REL_THRESHOLD)
     {
@@ -202,7 +203,6 @@ nsProbingState nsSingleByteCharSetProber::HandleData(const char* aBuf, PRUint32 
         mState = eNotMe;
       }
     }
-  printf("error_count : %d %d\n", error_count,aLen);
   return mState;
 }
 
