@@ -39,7 +39,7 @@
 #ifndef nsSBCSGroupProber_h__
 #define nsSBCSGroupProber_h__
 
-
+//이부분 바꿀것
 #define NUM_OF_SBCS_PROBERS 1
 
 class nsCharSetProber;

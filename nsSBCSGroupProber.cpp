@@ -46,14 +46,14 @@
 
 nsSBCSGroupProber::nsSBCSGroupProber()
 {
-  /*
+
   mProbers[0] = new nsSingleByteCharSetProber(&Win1251RussianModel);
+  /*
   mProbers[1] = new nsSingleByteCharSetProber(&Koi8rRussianModel);
   mProbers[2] = new nsSingleByteCharSetProber(&Latin5RussianModel);
   mProbers[3] = new nsSingleByteCharSetProber(&MacCyrillicRussianModel);
   mProbers[4] = new nsSingleByteCharSetProber(&Ibm866RussianModel);
   mProbers[5] = new nsSingleByteCharSetProber(&Ibm855RussianModel);
-
   mProbers[6] = new nsSingleByteCharSetProber(&Iso_8859_7GreekModel);
   mProbers[7] = new nsSingleByteCharSetProber(&Windows_1253GreekModel);
 
@@ -84,10 +84,12 @@ nsSBCSGroupProber::nsSBCSGroupProber()
   mProbers[14] = new nsSingleByteCharSetProber(&Iso_8859_11ThaiModel);
 
   mProbers[15] = new nsSingleByteCharSetProber(&Iso_8859_1FrenchModel);
+
   mProbers[16] = new nsSingleByteCharSetProber(&Iso_8859_15FrenchModel);
   mProbers[17] = new nsSingleByteCharSetProber(&Windows_1252FrenchModel);
 
   mProbers[18] = new nsSingleByteCharSetProber(&Iso_8859_1SpanishModel);
+
   mProbers[19] = new nsSingleByteCharSetProber(&Iso_8859_15SpanishModel);
   mProbers[20] = new nsSingleByteCharSetProber(&Windows_1252SpanishModel);
 
@@ -112,8 +114,6 @@ nsSBCSGroupProber::nsSBCSGroupProber()
   mProbers[33] = new nsSingleByteCharSetProber(&Iso_8859_1DanishModel);
   mProbers[34] = new nsSingleByteCharSetProber(&Windows_1252DanishModel);
   */
-  mProbers[0] = new nsSingleByteCharSetProber(&Windows_1258VietnameseModel);
-
   Reset();
 }
 

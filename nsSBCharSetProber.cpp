@@ -62,22 +62,27 @@ void nsSingleByteCharSetProber::BitShift(unsigned char* aBuf, unsigned char* cop
 
 PRUint32 nsSingleByteCharSetProber::GetScore(unsigned char shift_bit[][65536], PRUint32 start, PRUint32 aLen){
 
-  PRUint32 Max_Score = 999;
+  PRUint32 Max_Score = 9999;
   PRUint32 Max_score_bit;
   PRUint32 Score[8];
   unsigned char order;
   unsigned char lastorder;
-
+  int check_len;
 
   memset(Score, 0, sizeof(PRUint32)*8);
   lastorder = mLastOrder;
 
   for(PRUint32 shift = 0; shift < 8; shift++){              // 이후 0이 발생한 수중 제일 적은 쉬프트를 사용
-    for(PRUint32 i = start; i < aLen; i++){
+    check_len = start + 35;
+    for(PRUint32 i = start; i < check_len; i++){
+      if(i == aLen)
+        break;
       order = mModel->charToOrderMap[(unsigned char)shift_bit[shift][i]];
       if(order < mModel->freqCharCount){
-        if(mModel->precedenceMatrix[mLastOrder*mModel->freqCharCount+order] == 0){
-          Score[shift]++;
+        if (mLastOrder < mModel->freqCharCount){
+          if(mModel->precedenceMatrix[mLastOrder*mModel->freqCharCount+order] == 0){
+            Score[shift]++;
+          }
         }
         mLastOrder = order;
       }
@@ -96,40 +101,52 @@ PRUint32 nsSingleByteCharSetProber::GetScore(unsigned char shift_bit[][65536], P
   return Max_score_bit;
 }
 
+//심볼이 연속 2~3번 나올때 의심 한번 해보기 
+
 void nsSingleByteCharSetProber::ErrorRecover(unsigned char* aBuf, PRUint32 aLen){
 
   unsigned char order;
   unsigned char lastorder;
   PRUint32 Max_score_shift;
+  PRUint32 shift_count = 0;
 
   Reset();
+  mLastOrder = mModel->charToOrderMap[(unsigned char)aBuf[0]];
 
-  for(PRUint32 i = 0; i < aLen; i++){
+  for(PRUint32 i = 1; i < aLen; i++){
     order = mModel->charToOrderMap[(unsigned char)aBuf[i]];
     lastorder = mLastOrder;
       if(order < mModel->freqCharCount){
-        if(mModel->precedenceMatrix[mLastOrder*mModel->freqCharCount+order] == 0){ //0번 클래스
-          printf("Error Discover : %d \n", i);
-          unsigned char shift[8][65536];
+        if (mLastOrder < mModel->freqCharCount){
+          if(mModel->precedenceMatrix[mLastOrder*mModel->freqCharCount+order] == 0){ //0번 클래스
+            printf("Error Discover : %d \n", i);
+            unsigned char shift[8][65536];
 
-          for(PRUint32 j = 0; j < 8; j++){                // 쉬프뜨
-            BitShift(aBuf, shift[j], i, aLen, j);
-          }
-          Max_score_shift = GetScore(shift, i+1, aLen);     //score 계산
-          printf("Shift_bit : %d \n", Max_score_shift);
+            for(PRUint32 j = 0; j < 8; j++){                // 쉬프뜨
+              BitShift(aBuf, shift[j], i, aLen, j);
+            }
+            Max_score_shift = GetScore(shift, i+1, aLen);     //score 계산
+            printf("Shift_bit : %d \n", Max_score_shift);
 
-          for(PRUint32 k = i; k < aLen; k++){        //제일 좋은 스코어의 것으로 buf내용 변경
-            aBuf[k] = shift[Max_score_shift][k];
+            for(PRUint32 k = i; k < aLen; k++){        //제일 좋은 스코어의 것으로 buf내용 변경
+              aBuf[k] = shift[Max_score_shift][k];
+            }
+            aBuf[i] = '?';        //ILL이 발생한 비트를 ?로 바꿔준다*/
+            mLastOrder = lastorder;
+            shift_count++;
           }
-          aBuf[i] = '?';        //ILL이 발생한 비트를 ?로 바꿔준다*/
-          mLastOrder = lastorder;
+          else{
+            mLastOrder = order;
+          }
         }
         else{
           mLastOrder = order;
         }
       }
+      else{
+        mLastOrder = order;
+      }
   }
-
 }
 
 nsProbingState nsSingleByteCharSetProber::HandleData(const char* aBuf, PRUint32 aLen)
@@ -140,20 +157,23 @@ nsProbingState nsSingleByteCharSetProber::HandleData(const char* aBuf, PRUint32 
   char *newBuf1 = 0;
   PRUint32 newLen1 = 0;
 
-   //에러 리커버
-
   for(PRUint32 i = 0; i < aLen; i++)
     copy_aBuf[i] = (unsigned char)aBuf[i];
-
+E
   ErrorRecover(copy_aBuf, aLen);
 
-  FILE* out = fopen("output_recover.txt", "a+");
+  char buffer[50];
+
+  sprintf(buffer, "z_%s_recover.txt",GetCharSetName());
+
+  FILE* out = fopen(buffer, "a+");
   for (PRUint32 k = 0; k < aLen+1; k++)
     fputc(copy_aBuf[k], out);
 
   fclose(out);
 
-  FilterWithoutEnglishLetters(aBuf, aLen, &newBuf1, newLen1);
+  FilterWithoutEnglishLetters((const char*)copy_aBuf, aLen, &newBuf1, newLen1);
+  //FilterWithoutEnglishLetters(aBuf, aLen, &newBuf1, newLen1);
   Reset();
 
   for (PRUint32 i = 0; i < newLen1; i++)
@@ -191,7 +211,7 @@ nsProbingState nsSingleByteCharSetProber::HandleData(const char* aBuf, PRUint32 
     }
     mLastOrder = order;
   }
-  printf("0 : %d, 1 : %d 2 : %d 3 : %d\n", mSeqCounters[0],mSeqCounters[1],mSeqCounters[2],mSeqCounters[3]);
+  printf("%s : 0 : %d, 1 : %d 2 : %d 3 : %d\n", GetCharSetName(), mSeqCounters[0],mSeqCounters[1],mSeqCounters[2],mSeqCounters[3]);
   if (mState == eDetecting)
     if (mTotalSeqs > SB_ENOUGH_REL_THRESHOLD)
     {
@@ -229,8 +249,8 @@ float nsSingleByteCharSetProber::GetConfidence(void)
   return (float)0.01;
 #else  //POSITIVE_APPROACH
   float r;
-
-  if (mTotalSeqs > 0) {
+  //문턱값을 설정하지 않을 경우 매우 적은 표본으로 좋은 결과를 낸 다른 인코딩이 컨피던스가 1보다 높게나온다
+  if (mTotalSeqs > 350) {
     r = ((float)1.0) * mSeqCounters[POSITIVE_CAT] / mTotalSeqs / mModel->mTypicalPositiveRatio;
     /* Multiply by a ratio of positive sequences per characters.
      * This would help in particular to distinguish close winners.
