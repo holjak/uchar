@@ -40,7 +40,7 @@
 #define nsSBCSGroupProber_h__
 
 //이부분 바꿀것
-#define NUM_OF_SBCS_PROBERS 1
+#define NUM_OF_SBCS_PROBERS 35
 
 class nsCharSetProber;
 class nsSBCSGroupProber: public nsCharSetProber {

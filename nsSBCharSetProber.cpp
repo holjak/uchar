@@ -39,6 +39,8 @@
 #include <string.h>
 #include "nsSBCharSetProber.h"
 
+int thresh = 0;
+
 
 void nsSingleByteCharSetProber::BitShift(unsigned char* aBuf, unsigned char* copy_aBuf, PRUint32 start, PRUint32 aLen, PRUint32 shift_bit){
   unsigned char LSB,pre_LSB;
@@ -97,11 +99,11 @@ PRUint32 nsSingleByteCharSetProber::GetScore(unsigned char shift_bit[][65536], P
     }
   }
 
-  printf("Max_Score : %d \n", Max_Score);
+  //printf("Max_Score : %d \n", Max_Score);
   return Max_score_bit;
 }
 
-//심볼이 연속 2~3번 나올때 의심 한번 해보기 
+//심볼이 연속 2~3번 나올때 의심 한번 해보기
 
 void nsSingleByteCharSetProber::ErrorRecover(unsigned char* aBuf, PRUint32 aLen){
 
@@ -119,14 +121,14 @@ void nsSingleByteCharSetProber::ErrorRecover(unsigned char* aBuf, PRUint32 aLen)
       if(order < mModel->freqCharCount){
         if (mLastOrder < mModel->freqCharCount){
           if(mModel->precedenceMatrix[mLastOrder*mModel->freqCharCount+order] == 0){ //0번 클래스
-            printf("Error Discover : %d \n", i);
+            //printf("Error Discover : %d \n", i);
             unsigned char shift[8][65536];
 
             for(PRUint32 j = 0; j < 8; j++){                // 쉬프뜨
               BitShift(aBuf, shift[j], i, aLen, j);
             }
             Max_score_shift = GetScore(shift, i+1, aLen);     //score 계산
-            printf("Shift_bit : %d \n", Max_score_shift);
+            //printf("Shift_bit : %d \n", Max_score_shift);
 
             for(PRUint32 k = i; k < aLen; k++){        //제일 좋은 스코어의 것으로 buf내용 변경
               aBuf[k] = shift[Max_score_shift][k];
@@ -159,7 +161,7 @@ nsProbingState nsSingleByteCharSetProber::HandleData(const char* aBuf, PRUint32 
 
   for(PRUint32 i = 0; i < aLen; i++)
     copy_aBuf[i] = (unsigned char)aBuf[i];
-E
+
   ErrorRecover(copy_aBuf, aLen);
 
   char buffer[50];
@@ -174,6 +176,7 @@ E
 
   FilterWithoutEnglishLetters((const char*)copy_aBuf, aLen, &newBuf1, newLen1);
   //FilterWithoutEnglishLetters(aBuf, aLen, &newBuf1, newLen1);
+  thresh = newLen1/5;
   Reset();
 
   for (PRUint32 i = 0; i < newLen1; i++)
@@ -250,7 +253,7 @@ float nsSingleByteCharSetProber::GetConfidence(void)
 #else  //POSITIVE_APPROACH
   float r;
   //문턱값을 설정하지 않을 경우 매우 적은 표본으로 좋은 결과를 낸 다른 인코딩이 컨피던스가 1보다 높게나온다
-  if (mTotalSeqs > 350) {
+  if (mTotalSeqs > thresh) {
     r = ((float)1.0) * mSeqCounters[POSITIVE_CAT] / mTotalSeqs / mModel->mTypicalPositiveRatio;
     /* Multiply by a ratio of positive sequences per characters.
      * This would help in particular to distinguish close winners.
